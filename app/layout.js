@@ -4,7 +4,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: '💰 Minhas Finanças',
+  title: 'Minhas Finanças',
   description: 'Sistema de gestão financeira pessoal',
 };
 

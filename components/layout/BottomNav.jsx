@@ -1,11 +1,10 @@
 'use client';
 
 import { Home, CreditCard, BarChart3, Settings, Wallet } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 export default function BottomNav({ activeView, onViewChange }) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const navItems = [
     {
@@ -81,9 +80,6 @@ export default function BottomNav({ activeView, onViewChange }) {
                     isActive ? 'stroke-[2.5]' : 'stroke-2'
                   }`}
                 />
-                {item.id === 'cards' && creditUsed > 0 && (
-                  <span className='absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full' />
-                )}
               </div>
 
               <span
