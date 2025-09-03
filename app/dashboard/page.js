@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [balance] = useState(4250.0);
-  const [transactions] = useState([
+  const [balance, setBalance] = useState(4250.0);
+  const [showModal, setShowModal] = useState(false);
+  const [transactions, setTransactions] = useState([
     {
       id: 1,
       type: 'debit',
@@ -58,6 +59,18 @@ export default function Dashboard() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     router.push('/login');
+  };
+
+  const handleAddTransaction = newTransaction => {
+    setTransactions([newTransaction, ...transactions]);
+
+    if (newTransaction.type === 'income' || newTransaction.type === 'salary') {
+      setBalance(prev => prev + newTransaction.amount);
+    } else {
+      setBalance(prev => prev - newTransaction.amount);
+    }
+
+    setShowModal(false);
   };
 
   if (!user) {
@@ -155,9 +168,242 @@ export default function Dashboard() {
       </main>
 
       {/* Floating Action Button */}
-      <button className='fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full text-white shadow-2xl hover:scale-110 transition-transform flex items-center justify-center text-2xl'>
+      <button
+        onClick={() => setShowModal(true)}
+        className='fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full text-white shadow-2xl hover:scale-110 transition-transform flex items-center justify-center text-2xl'
+      >
         +
       </button>
+
+      {/* Modal de Adicionar Transação */}
+      {showModal && (
+        <TransactionModal
+          onClose={() => setShowModal(false)}
+          onSave={handleAddTransaction}
+        />
+      )}
+    </div>
+  );
+}
+
+// Componente Modal
+function TransactionModal({ onClose, onSave }) {
+  const [type, setType] = useState('');
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    if (!type || !amount || !category) {
+      alert('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    const newTransaction = {
+      id: Date.now(),
+      type,
+      amount: parseFloat(amount),
+      category,
+      description: description || 'Sem descrição',
+      date: new Date().toLocaleString('pt-PT', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    };
+
+    onSave(newTransaction);
+  };
+
+  return (
+    <div className='fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center'>
+      <div className='absolute inset-0' onClick={onClose} />
+
+      <div className='relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[80vh] overflow-y-auto'>
+        {/* Header */}
+        <div className='sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10'>
+          <div className='flex items-center justify-between'>
+            <h2 className='text-2xl font-bold text-gray-800'>Nova Transação</h2>
+            <button
+              onClick={onClose}
+              className='w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors text-xl'
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className='p-6'>
+          {/* Tipo */}
+          <div className='mb-6'>
+            <label className='block text-sm font-medium text-gray-700 mb-3'>
+              Tipo de Transação *
+            </label>
+            <div className='grid grid-cols-2 gap-3'>
+              <button
+                type='button'
+                onClick={() => setType('debit')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  type === 'debit'
+                    ? 'bg-red-50 border-red-500'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className='text-2xl mb-1'>💸</div>
+                <div className='font-semibold'>Despesa</div>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setType('credit')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  type === 'credit'
+                    ? 'bg-orange-50 border-orange-500'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className='text-2xl mb-1'>💳</div>
+                <div className='font-semibold'>Cartão</div>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setType('income')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  type === 'income'
+                    ? 'bg-green-50 border-green-500'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className='text-2xl mb-1'>💰</div>
+                <div className='font-semibold'>Receita</div>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setType('salary')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  type === 'salary'
+                    ? 'bg-blue-50 border-blue-500'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className='text-2xl mb-1'>🏦</div>
+                <div className='font-semibold'>Salário</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Valor */}
+          <div className='mb-6'>
+            <label className='block text-sm font-medium text-gray-700 mb-2'>
+              Valor *
+            </label>
+            <div className='relative'>
+              <span className='absolute left-4 top-1/2 -translate-y-1/2 text-xl text-gray-500'>
+                €
+              </span>
+              <input
+                type='number'
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder='0.00'
+                step='0.01'
+                min='0'
+                className='w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all text-lg'
+                required
+              />
+            </div>
+
+            {/* Botões de valor rápido */}
+            <div className='flex gap-2 mt-2'>
+              {[5, 10, 20, 50, 100].map(val => (
+                <button
+                  key={val}
+                  type='button'
+                  onClick={() => setAmount(val.toString())}
+                  className='flex-1 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium transition-colors'
+                >
+                  {val}€
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Categoria */}
+          <div className='mb-6'>
+            <label className='block text-sm font-medium text-gray-700 mb-2'>
+              Categoria *
+            </label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              className='w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all'
+              required
+            >
+              <option value=''>Selecione uma categoria...</option>
+              {type === 'income' || type === 'salary' ? (
+                <>
+                  <option value='💰 Venda'>💰 Venda</option>
+                  <option value='🏦 Salário'>🏦 Salário</option>
+                  <option value='💼 Freelance'>💼 Freelance</option>
+                  <option value='🎁 Presente'>🎁 Presente</option>
+                  <option value='📈 Investimento'>📈 Investimento</option>
+                </>
+              ) : (
+                <>
+                  <option value='🍔 Alimentação'>🍔 Alimentação</option>
+                  <option value='🚗 Transporte'>🚗 Transporte</option>
+                  <option value='🏠 Casa'>🏠 Casa</option>
+                  <option value='💊 Saúde'>💊 Saúde</option>
+                  <option value='🎮 Lazer'>🎮 Lazer</option>
+                  <option value='👕 Roupas'>👕 Roupas</option>
+                  <option value='📚 Educação'>📚 Educação</option>
+                  <option value='🛒 Mercado'>🛒 Mercado</option>
+                  <option value='💡 Contas'>💡 Contas</option>
+                  <option value='🎁 Outros'>🎁 Outros</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          {/* Descrição */}
+          <div className='mb-6'>
+            <label className='block text-sm font-medium text-gray-700 mb-2'>
+              Descrição (opcional)
+            </label>
+            <input
+              type='text'
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder='Ex: Almoço no restaurante, Uber para o trabalho...'
+              className='w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all'
+              maxLength={100}
+            />
+          </div>
+
+          {/* Botões */}
+          <div className='flex gap-3'>
+            <button
+              type='button'
+              onClick={onClose}
+              className='flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all'
+            >
+              Cancelar
+            </button>
+            <button
+              type='submit'
+              disabled={!type || !amount || !category}
+              className='flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+            >
+              Salvar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
