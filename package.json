@@ -13,6 +13,7 @@
     "db:init": "node scripts/init-db.js",
     "db:reset": "rm -f database.sqlite && npm run db:init",
     "update-env": "node scripts/update-from-env.js",
+    "env": "bash quick-env-update.sh",
     "test": "jest --watch",
     "test:ci": "jest --ci",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
