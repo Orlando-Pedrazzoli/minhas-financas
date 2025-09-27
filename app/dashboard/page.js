@@ -2,58 +2,139 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Plus,
+  RefreshCw,
+  LogOut,
+  Home,
+  CreditCard,
+  BarChart3,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [balance, setBalance] = useState(4250.0);
-  const [showModal, setShowModal] = useState(false);
-  const [transactions, setTransactions] = useState([
-    {
-      id: 1,
-      type: 'debit',
-      amount: 12.5,
-      category: '🍔 Alimentação',
-      description: 'Almoço',
-      date: 'Hoje, 12:30',
-    },
-    {
-      id: 2,
-      type: 'credit',
-      amount: 45.0,
-      category: '🛒 Mercado',
-      description: 'Compras',
-      date: 'Hoje, 10:00',
-    },
-    {
-      id: 3,
-      type: 'income',
-      amount: 250.0,
-      category: '💼 Freelance',
-      description: 'Projeto',
-      date: 'Ontem, 18:00',
-    },
-    {
-      id: 4,
-      type: 'salary',
-      amount: 3500.0,
-      category: '🏦 Salário',
-      description: 'Mensal',
-      date: '01/11/2024',
-    },
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState({
+    balance: 0,
+    creditLimit: 5000,
+    creditUsed: 0,
+    creditDueDay: 15,
+    todayExpenses: 0,
+    monthExpenses: 0,
+    monthIncome: 0,
+    transactions: [],
+  });
+  const [showAddModal, setShowAddModal] = useState(false);
 
+  // Verificar autenticação e carregar dados
   useEffect(() => {
-    // Verificar se está autenticado
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    checkAuthAndLoadData();
+  }, []);
 
-    if (!token) {
-      router.push('/login');
-    } else if (userData) {
-      setUser(JSON.parse(userData));
+  const checkAuthAndLoadData = async () => {
+    try {
+      // Verificar se está autenticado
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+
+      if (!token || !savedUser) {
+        router.push('/login');
+        return;
+      }
+
+      setUser(JSON.parse(savedUser));
+
+      // Carregar dados
+      await Promise.all([
+        loadBalance(token),
+        loadCreditCard(token),
+        loadTransactions(token),
+      ]);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados');
+    } finally {
+      setLoading(false);
     }
-  }, [router]);
+  };
+
+  const loadBalance = async token => {
+    try {
+      const response = await fetch('/api/balance', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const balanceData = await response.json();
+        setData(prev => ({ ...prev, ...balanceData }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar saldo:', error);
+    }
+  };
+
+  const loadCreditCard = async token => {
+    try {
+      const response = await fetch('/api/credit-card', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const creditData = await response.json();
+        setData(prev => ({
+          ...prev,
+          creditLimit: creditData.limit,
+          creditUsed: creditData.used,
+          creditDueDay: creditData.dueDay,
+        }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar cartão:', error);
+    }
+  };
+
+  const loadTransactions = async token => {
+    try {
+      const response = await fetch('/api/transactions', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const transactions = await response.json();
+        setData(prev => ({ ...prev, transactions }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar transações:', error);
+    }
+  };
+
+  const handleAddTransaction = async transaction => {
+    const token = localStorage.getItem('token');
+
+    try {
+      const response = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(transaction),
+      });
+
+      if (response.ok) {
+        toast.success('Transação adicionada!');
+        setShowAddModal(false);
+        checkAuthAndLoadData(); // Recarregar dados
+      } else {
+        toast.error('Erro ao adicionar transação');
+      }
+    } catch (error) {
+      console.error('Erro:', error);
+      toast.error('Erro ao adicionar transação');
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -61,28 +142,25 @@ export default function Dashboard() {
     router.push('/login');
   };
 
-  const handleAddTransaction = newTransaction => {
-    setTransactions([newTransaction, ...transactions]);
-
-    if (newTransaction.type === 'income' || newTransaction.type === 'salary') {
-      setBalance(prev => prev + newTransaction.amount);
-    } else {
-      setBalance(prev => prev - newTransaction.amount);
-    }
-
-    setShowModal(false);
+  const handleRefresh = () => {
+    setLoading(true);
+    checkAuthAndLoadData();
+    toast.success('Dados atualizados!');
   };
 
-  if (!user) {
+  // Loading
+  if (loading) {
     return (
       <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
         <div className='text-center'>
           <div className='w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4'></div>
-          <p className='text-gray-600'>Carregando...</p>
+          <p className='text-gray-600'>Carregando dados...</p>
         </div>
       </div>
     );
   }
+
+  const creditPercentage = (data.creditUsed / data.creditLimit) * 100;
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100'>
@@ -92,14 +170,24 @@ export default function Dashboard() {
           <div className='flex items-center justify-between'>
             <div>
               <h1 className='text-2xl font-bold'>💰 Minhas Finanças</h1>
-              <p className='text-purple-100'>Olá, {user.username}!</p>
+              <p className='text-purple-100'>Olá, {user?.username}!</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className='bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors'
-            >
-              Sair
-            </button>
+            <div className='flex gap-2'>
+              <button
+                onClick={handleRefresh}
+                className='w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors'
+              >
+                <RefreshCw
+                  className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`}
+                />
+              </button>
+              <button
+                onClick={handleLogout}
+                className='w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors'
+              >
+                <LogOut className='w-5 h-5' />
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -107,26 +195,53 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className='container mx-auto px-4 py-8'>
         {/* Balance Card */}
-        <div className='bg-white rounded-2xl shadow-xl p-6 mb-8'>
+        <div className='bg-white rounded-2xl shadow-xl p-6 mb-6'>
           <h2 className='text-gray-600 mb-2'>Saldo Disponível</h2>
           <p className='text-4xl font-bold text-gray-800'>
-            € {balance.toFixed(2).replace('.', ',')}
+            € {data.balance.toFixed(2).replace('.', ',')}
           </p>
+          <div className='grid grid-cols-3 gap-4 mt-4 pt-4 border-t'>
+            <div>
+              <p className='text-sm text-gray-500'>Gastos Hoje</p>
+              <p className='text-lg font-semibold'>
+                € {data.todayExpenses.toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-gray-500'>Gastos Mês</p>
+              <p className='text-lg font-semibold'>
+                € {data.monthExpenses.toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-gray-500'>Receitas Mês</p>
+              <p className='text-lg font-semibold'>
+                € {data.monthIncome.toFixed(2)}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-8'>
-          <div className='bg-white rounded-xl shadow p-4'>
-            <p className='text-gray-600 text-sm'>Gastos Hoje</p>
-            <p className='text-2xl font-bold text-red-600'>€ 57,50</p>
+        {/* Credit Card */}
+        <div className='bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl shadow-xl p-6 mb-6'>
+          <div className='flex justify-between items-start mb-4'>
+            <div>
+              <p className='text-white/80 text-sm'>Cartão de Crédito</p>
+              <p className='text-2xl font-bold'>VISA Gold</p>
+            </div>
+            <CreditCard className='w-8 h-8' />
           </div>
-          <div className='bg-white rounded-xl shadow p-4'>
-            <p className='text-gray-600 text-sm'>Receitas Mês</p>
-            <p className='text-2xl font-bold text-green-600'>€ 3.750,00</p>
-          </div>
-          <div className='bg-white rounded-xl shadow p-4'>
-            <p className='text-gray-600 text-sm'>Fatura Cartão</p>
-            <p className='text-2xl font-bold text-orange-600'>€ 45,00</p>
+          <div className='space-y-2'>
+            <div className='bg-white/20 rounded-full h-2'>
+              <div
+                className='bg-white h-2 rounded-full transition-all'
+                style={{ width: `${Math.min(creditPercentage, 100)}%` }}
+              />
+            </div>
+            <div className='flex justify-between text-sm'>
+              <span>Usado: € {data.creditUsed.toFixed(2)}</span>
+              <span>Limite: € {data.creditLimit.toFixed(2)}</span>
+            </div>
           </div>
         </div>
 
@@ -136,49 +251,55 @@ export default function Dashboard() {
             Últimas Transações
           </h2>
           <div className='space-y-3'>
-            {transactions.map(trans => (
-              <div
-                key={trans.id}
-                className='flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg'
-              >
-                <div>
-                  <p className='font-semibold text-gray-800'>
-                    {trans.category}
-                  </p>
-                  <p className='text-sm text-gray-500'>
-                    {trans.description} • {trans.date}
+            {data.transactions.length === 0 ? (
+              <p className='text-center text-gray-500 py-8'>
+                Nenhuma transação ainda
+              </p>
+            ) : (
+              data.transactions.slice(0, 5).map(trans => (
+                <div
+                  key={trans.id}
+                  className='flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg'
+                >
+                  <div>
+                    <p className='font-semibold text-gray-800'>
+                      {trans.category}
+                    </p>
+                    <p className='text-sm text-gray-500'>
+                      {trans.description} • {trans.time}
+                    </p>
+                  </div>
+                  <p
+                    className={`font-bold ${
+                      trans.type === 'income' || trans.type === 'salary'
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    }`}
+                  >
+                    {trans.type === 'income' || trans.type === 'salary'
+                      ? '+'
+                      : '-'}
+                    € {trans.amount.toFixed(2).replace('.', ',')}
                   </p>
                 </div>
-                <p
-                  className={`font-bold ${
-                    trans.type === 'income' || trans.type === 'salary'
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }`}
-                >
-                  {trans.type === 'income' || trans.type === 'salary'
-                    ? '+'
-                    : '-'}
-                  € {trans.amount.toFixed(2).replace('.', ',')}
-                </p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </main>
 
       {/* Floating Action Button */}
       <button
-        onClick={() => setShowModal(true)}
+        onClick={() => setShowAddModal(true)}
         className='fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full text-white shadow-2xl hover:scale-110 transition-transform flex items-center justify-center text-2xl'
       >
-        +
+        <Plus className='w-6 h-6' />
       </button>
 
-      {/* Modal de Adicionar Transação */}
-      {showModal && (
+      {/* Modal Simplificado */}
+      {showAddModal && (
         <TransactionModal
-          onClose={() => setShowModal(false)}
+          onClose={() => setShowAddModal(false)}
           onSave={handleAddTransaction}
         />
       )}
@@ -186,218 +307,96 @@ export default function Dashboard() {
   );
 }
 
-// Componente Modal
+// Componente Modal Simplificado
 function TransactionModal({ onClose, onSave }) {
-  const [type, setType] = useState('');
+  const [type, setType] = useState('debit');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
 
   const handleSubmit = e => {
     e.preventDefault();
-    if (!type || !amount || !category) {
-      alert('Preencha todos os campos obrigatórios');
+
+    if (!amount || !category) {
+      toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
-    const newTransaction = {
-      id: Date.now(),
+    onSave({
       type,
       amount: parseFloat(amount),
       category,
       description: description || 'Sem descrição',
-      date: new Date().toLocaleString('pt-PT', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    };
-
-    onSave(newTransaction);
+    });
   };
 
   return (
-    <div className='fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center'>
-      <div className='absolute inset-0' onClick={onClose} />
+    <div className='fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4'>
+      <div className='bg-white rounded-2xl w-full max-w-md p-6'>
+        <h2 className='text-2xl font-bold mb-4'>Nova Transação</h2>
 
-      <div className='relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg max-h-[80vh] overflow-y-auto'>
-        {/* Header */}
-        <div className='sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10'>
-          <div className='flex items-center justify-between'>
-            <h2 className='text-2xl font-bold text-gray-800'>Nova Transação</h2>
-            <button
-              onClick={onClose}
-              className='w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors text-xl'
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className='p-6'>
-          {/* Tipo */}
-          <div className='mb-6'>
-            <label className='block text-sm font-medium text-gray-700 mb-3'>
-              Tipo de Transação *
-            </label>
-            <div className='grid grid-cols-2 gap-3'>
-              <button
-                type='button'
-                onClick={() => setType('debit')}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  type === 'debit'
-                    ? 'bg-red-50 border-red-500'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className='text-2xl mb-1'>💸</div>
-                <div className='font-semibold'>Despesa</div>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => setType('credit')}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  type === 'credit'
-                    ? 'bg-orange-50 border-orange-500'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className='text-2xl mb-1'>💳</div>
-                <div className='font-semibold'>Cartão</div>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => setType('income')}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  type === 'income'
-                    ? 'bg-green-50 border-green-500'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className='text-2xl mb-1'>💰</div>
-                <div className='font-semibold'>Receita</div>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => setType('salary')}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  type === 'salary'
-                    ? 'bg-blue-50 border-blue-500'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className='text-2xl mb-1'>🏦</div>
-                <div className='font-semibold'>Salário</div>
-              </button>
-            </div>
-          </div>
-
-          {/* Valor */}
-          <div className='mb-6'>
-            <label className='block text-sm font-medium text-gray-700 mb-2'>
-              Valor *
-            </label>
-            <div className='relative'>
-              <span className='absolute left-4 top-1/2 -translate-y-1/2 text-xl text-gray-500'>
-                €
-              </span>
-              <input
-                type='number'
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder='0.00'
-                step='0.01'
-                min='0'
-                className='w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all text-lg'
-                required
-              />
-            </div>
-
-            {/* Botões de valor rápido */}
-            <div className='flex gap-2 mt-2'>
-              {[5, 10, 20, 50, 100].map(val => (
-                <button
-                  key={val}
-                  type='button'
-                  onClick={() => setAmount(val.toString())}
-                  className='flex-1 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium transition-colors'
-                >
-                  {val}€
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Categoria */}
-          <div className='mb-6'>
-            <label className='block text-sm font-medium text-gray-700 mb-2'>
-              Categoria *
-            </label>
+        <form onSubmit={handleSubmit} className='space-y-4'>
+          <div>
+            <label className='block text-sm font-medium mb-2'>Tipo</label>
             <select
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              className='w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all'
-              required
+              value={type}
+              onChange={e => setType(e.target.value)}
+              className='w-full p-2 border rounded-lg'
             >
-              <option value=''>Selecione uma categoria...</option>
-              {type === 'income' || type === 'salary' ? (
-                <>
-                  <option value='💰 Venda'>💰 Venda</option>
-                  <option value='🏦 Salário'>🏦 Salário</option>
-                  <option value='💼 Freelance'>💼 Freelance</option>
-                  <option value='🎁 Presente'>🎁 Presente</option>
-                  <option value='📈 Investimento'>📈 Investimento</option>
-                </>
-              ) : (
-                <>
-                  <option value='🍔 Alimentação'>🍔 Alimentação</option>
-                  <option value='🚗 Transporte'>🚗 Transporte</option>
-                  <option value='🏠 Casa'>🏠 Casa</option>
-                  <option value='💊 Saúde'>💊 Saúde</option>
-                  <option value='🎮 Lazer'>🎮 Lazer</option>
-                  <option value='👕 Roupas'>👕 Roupas</option>
-                  <option value='📚 Educação'>📚 Educação</option>
-                  <option value='🛒 Mercado'>🛒 Mercado</option>
-                  <option value='💡 Contas'>💡 Contas</option>
-                  <option value='🎁 Outros'>🎁 Outros</option>
-                </>
-              )}
+              <option value='debit'>Débito</option>
+              <option value='credit'>Cartão</option>
+              <option value='income'>Receita</option>
+              <option value='salary'>Salário</option>
             </select>
           </div>
 
-          {/* Descrição */}
-          <div className='mb-6'>
-            <label className='block text-sm font-medium text-gray-700 mb-2'>
-              Descrição (opcional)
-            </label>
+          <div>
+            <label className='block text-sm font-medium mb-2'>Valor</label>
+            <input
+              type='number'
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder='0.00'
+              step='0.01'
+              className='w-full p-2 border rounded-lg'
+              required
+            />
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium mb-2'>Categoria</label>
+            <input
+              type='text'
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              placeholder='Ex: 🍔 Alimentação'
+              className='w-full p-2 border rounded-lg'
+              required
+            />
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium mb-2'>Descrição</label>
             <input
               type='text'
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder='Ex: Almoço no restaurante, Uber para o trabalho...'
-              className='w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all'
-              maxLength={100}
+              placeholder='Opcional'
+              className='w-full p-2 border rounded-lg'
             />
           </div>
 
-          {/* Botões */}
-          <div className='flex gap-3'>
+          <div className='flex gap-2'>
             <button
               type='button'
               onClick={onClose}
-              className='flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all'
+              className='flex-1 py-2 bg-gray-200 rounded-lg'
             >
               Cancelar
             </button>
             <button
               type='submit'
-              disabled={!type || !amount || !category}
-              className='flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+              className='flex-1 py-2 bg-purple-600 text-white rounded-lg'
             >
               Salvar
             </button>
