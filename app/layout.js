@@ -6,11 +6,15 @@ import { FinanceProvider } from '@/contexts/FinanceContext';
 import { Toaster } from 'react-hot-toast';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export default function RootLayout({ children }) {
   return (
-    <html lang='pt-PT'>
+    <html lang='pt-PT' className={inter.variable}>
       <head>
         <title>Minhas Finanças - Gestão Financeira Inteligente</title>
         <meta
@@ -19,7 +23,7 @@ export default function RootLayout({ children }) {
         />
         <meta
           name='viewport'
-          content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0'
+          content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover'
         />
         <meta name='theme-color' content='#6366f1' />
         <link rel='manifest' href='/manifest.json' />
